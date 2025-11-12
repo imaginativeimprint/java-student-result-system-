@@ -1,0 +1,959 @@
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.awt.event.*;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.List;
+
+public class StudentResultSystemGUI {
+    private ResultManagementSystem system;
+    private JFrame mainFrame;
+    private CardLayout cardLayout;
+    private JPanel mainPanel;
+    private DecimalFormat df;
+    
+    // Current student for session
+    private Student currentStudent;
+    
+    // Student panels components
+    private JTextArea studentResultArea;
+    private JComboBox<Integer> studentSemComboBox;
+    private JLabel studentInfoLabel;
+    
+    // Management panels components
+    private JTable studentsTable;
+    private DefaultTableModel studentsTableModel;
+    private JTextArea managementResultArea;
+    
+    public StudentResultSystemGUI() {
+        this.system = new ResultManagementSystem();
+        this.df = new DecimalFormat("#.##");
+        initializeGUI();
+    }
+    
+    private void initializeGUI() {
+        mainFrame = new JFrame("Student Result Management System");
+        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setSize(1000, 750);
+        mainFrame.setLocationRelativeTo(null);
+        
+        cardLayout = new CardLayout();
+        mainPanel = new JPanel(cardLayout);
+        
+        createLoginPanel();
+        createStudentPanel();
+        createManagementPanel();
+        createManagementMenuPanel();
+        createAddStudentPanel();
+        createAddMarksPanel();
+        createAddSubjectPanel();
+        
+        mainFrame.add(mainPanel);
+        mainFrame.setVisible(true);
+    }
+    
+    private void createLoginPanel() {
+        JPanel loginPanel = new JPanel(new BorderLayout());
+        loginPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        loginPanel.setBackground(new Color(240, 240, 240));
+        
+        // Title
+        JLabel titleLabel = new JLabel("STUDENT RESULT MANAGEMENT SYSTEM", JLabel.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 40, 0));
+        titleLabel.setForeground(new Color(70, 130, 180));
+        loginPanel.add(titleLabel, BorderLayout.NORTH);
+        
+        // Button Panel
+        JPanel buttonPanel = new JPanel(new GridLayout(2, 1, 10, 10));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(50, 150, 50, 150));
+        buttonPanel.setBackground(new Color(240, 240, 240));
+        
+        JButton studentLoginBtn = createStyledButton("STUDENT LOGIN", new Color(70, 130, 180));
+        studentLoginBtn.addActionListener(e -> showStudentLogin());
+        
+        JButton managementLoginBtn = createStyledButton("MANAGEMENT LOGIN", new Color(60, 179, 113));
+        managementLoginBtn.addActionListener(e -> showManagementLogin());
+        
+        buttonPanel.add(studentLoginBtn);
+        buttonPanel.add(managementLoginBtn);
+        
+        loginPanel.add(buttonPanel, BorderLayout.CENTER);
+        
+        // Footer
+        JLabel footerLabel = new JLabel("Pre-added Students: 172-Shashank, 131-Priti, 147-Rajeev, 137-Rahul | Password: admin123", JLabel.CENTER);
+        footerLabel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        footerLabel.setForeground(Color.GRAY);
+        loginPanel.add(footerLabel, BorderLayout.SOUTH);
+        
+        mainPanel.add(loginPanel, "LOGIN");
+    }
+    
+    private JButton createStyledButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Arial", Font.BOLD, 16));
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        return button;
+    }
+    
+    private void showStudentLogin() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JTextField usnField = new JTextField();
+        JTextField dobField = new JTextField();
+        
+        panel.add(new JLabel("USN:"));
+        panel.add(usnField);
+        panel.add(new JLabel("Date of Birth (DD-MM-YYYY):"));
+        panel.add(dobField);
+        panel.add(new JLabel("")); // Empty cell
+        panel.add(new JLabel("")); // Empty cell
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Student Login", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            String usn = usnField.getText().trim();
+            String dob = dobField.getText().trim();
+            
+            if (usn.isEmpty() || dob.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please fill all fields!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            Student student = system.students.get(usn);
+            if (student != null && student.getDob().equals(dob)) {
+                currentStudent = student;
+                loadStudentData(student);
+                cardLayout.show(mainPanel, "STUDENT");
+            } else {
+                JOptionPane.showMessageDialog(mainFrame, "Invalid USN or Date of Birth!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void showManagementLogin() {
+        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JPasswordField passwordField = new JPasswordField();
+        
+        panel.add(new JLabel("Admin Password:"));
+        panel.add(passwordField);
+        panel.add(new JLabel("")); // Empty cell
+        panel.add(new JLabel("")); // Empty cell
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Management Login", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            String password = new String(passwordField.getPassword());
+            if (password.equals(ResultManagementSystem.ADMIN_PASSWORD)) {
+                loadManagementData();
+                cardLayout.show(mainPanel, "MANAGEMENT_MENU");
+            } else {
+                JOptionPane.showMessageDialog(mainFrame, "Invalid password!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void createStudentPanel() {
+        JPanel studentPanel = new JPanel(new BorderLayout());
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        headerPanel.setBackground(new Color(70, 130, 180));
+        
+        studentInfoLabel = new JLabel("", JLabel.CENTER);
+        studentInfoLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        studentInfoLabel.setForeground(Color.WHITE);
+        headerPanel.add(studentInfoLabel, BorderLayout.CENTER);
+        
+        JButton backBtn = new JButton("Back to Login");
+        backBtn.addActionListener(e -> {
+            currentStudent = null;
+            cardLayout.show(mainPanel, "LOGIN");
+        });
+        headerPanel.add(backBtn, BorderLayout.EAST);
+        
+        studentPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Control Panel
+        JPanel controlPanel = new JPanel(new FlowLayout());
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        studentSemComboBox = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5, 6, 7, 8});
+        JButton viewSemesterBtn = new JButton("View Semester Result");
+        JButton viewAllBtn = new JButton("View All Semesters");
+        JButton viewCGPABtn = new JButton("View CGPA");
+        
+        viewSemesterBtn.addActionListener(e -> viewSemesterResult());
+        viewAllBtn.addActionListener(e -> viewAllSemestersResult());
+        viewCGPABtn.addActionListener(e -> viewCGPA());
+        
+        controlPanel.add(new JLabel("Select Semester:"));
+        controlPanel.add(studentSemComboBox);
+        controlPanel.add(viewSemesterBtn);
+        controlPanel.add(viewAllBtn);
+        controlPanel.add(viewCGPABtn);
+        
+        studentPanel.add(controlPanel, BorderLayout.CENTER);
+        
+        // Result Area
+        studentResultArea = new JTextArea(20, 80);
+        studentResultArea.setEditable(false);
+        studentResultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        JScrollPane scrollPane = new JScrollPane(studentResultArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Result Details"));
+        
+        studentPanel.add(scrollPane, BorderLayout.SOUTH);
+        
+        mainPanel.add(studentPanel, "STUDENT");
+    }
+    
+    private void loadStudentData(Student student) {
+        studentInfoLabel.setText("Welcome: " + student.getName() + " | USN: " + student.getUsn() + " | DOB: " + student.getDob());
+    }
+    
+    private void viewSemesterResult() {
+        if (currentStudent == null) return;
+        
+        int semNumber = (Integer) studentSemComboBox.getSelectedItem();
+        Semester semester = currentStudent.getSemesters().get(semNumber);
+        
+        StringBuilder result = new StringBuilder();
+        result.append("===== SEMESTER ").append(semNumber).append(" RESULT =====\n\n");
+        
+        if (semester == null || !semester.hasAnyMarks()) {
+            result.append("No marks available for Semester ").append(semNumber).append("\n");
+            studentResultArea.setText(result.toString());
+            return;
+        }
+        
+        // Table header
+        result.append(String.format("%-10s %-25s %-8s %-6s %-8s %-10s\n", 
+            "Code", "Subject Name", "Credits", "Marks", "Grade", "Status"));
+        result.append("-------------------------------------------------------------------\n");
+        
+        for (Subject subject : semester.getSubjects()) {
+            String marksStr = subject.getMarks() == -1 ? "N/A" : String.valueOf(subject.getMarks());
+            String gradeStr = subject.getGrade();
+            String status = "N/A";
+            
+            if (subject.hasMarks()) {
+                status = subject.isPass() ? "PASS" : "FAIL";
+            }
+            
+            result.append(String.format("%-10s %-25s %-8d %-6s %-8s %-10s\n", 
+                subject.getCode(), subject.getName(), subject.getCredits(), 
+                marksStr, gradeStr, status));
+        }
+        
+        if (semester.hasAnyMarks()) {
+            double sgpa = semester.calculateSGPA();
+            result.append("\nSGPA: ").append(df.format(sgpa)).append("\n");
+            
+            if (semester.hasFailedSubjects()) {
+                int failedCount = semester.getFailedSubjectCount();
+                result.append("❌ RESULT: FAIL (").append(failedCount).append(" subject(s) failed)\n");
+                result.append("⚠️  Student must clear the failed subject(s) to pass this semester\n");
+            } else if (semester.allSubjectsHaveMarks()) {
+                result.append("✅ RESULT: PASS\n");
+            } else {
+                result.append("⏳ RESULT: Incomplete (some marks pending)\n");
+            }
+        }
+        
+        studentResultArea.setText(result.toString());
+    }
+    
+    private void viewAllSemestersResult() {
+        if (currentStudent == null) return;
+        
+        StringBuilder result = new StringBuilder();
+        result.append("===== ALL SEMESTERS RESULT =====\n\n");
+        
+        double totalCGPA = 0;
+        int semCount = 0;
+        boolean hasAnyData = false;
+        
+        for (int sem = 1; sem <= 8; sem++) {
+            Semester semester = currentStudent.getSemesters().get(sem);
+            if (semester != null && semester.hasAnyMarks()) {
+                hasAnyData = true;
+                double sgpa = semester.calculateSGPA();
+                if (sgpa > 0) {
+                    totalCGPA += sgpa;
+                    semCount++;
+                    
+                    String resultStatus = "Incomplete";
+                    if (semester.allSubjectsHaveMarks()) {
+                        resultStatus = semester.isPass() ? "PASS" : "FAIL";
+                    }
+                    
+                    result.append("Semester ").append(sem).append(" - SGPA: ").append(df.format(sgpa))
+                          .append(" - Status: ").append(resultStatus);
+                    
+                    if (semester.hasFailedSubjects()) {
+                        result.append(" - Failed in ").append(semester.getFailedSubjectCount()).append(" subject(s)");
+                    }
+                    result.append("\n");
+                }
+            }
+        }
+        
+        if (!hasAnyData) {
+            result.append("No semester data with marks available!\n");
+        } else if (semCount > 0) {
+            result.append("\nOverall CGPA (Completed Semesters): ").append(df.format(totalCGPA / semCount)).append("\n");
+        }
+        
+        studentResultArea.setText(result.toString());
+    }
+    
+    private void viewCGPA() {
+        if (currentStudent == null) return;
+        
+        double cgpa = calculateCGPA(currentStudent);
+        StringBuilder result = new StringBuilder();
+        result.append("===== CGPA CALCULATION =====\n\n");
+        
+        result.append("Student: ").append(currentStudent.getName()).append("\n");
+        result.append("USN: ").append(currentStudent.getUsn()).append("\n\n");
+        
+        result.append("Completed Semesters:\n");
+        int completedCount = 0;
+        
+        for (int sem = 1; sem <= 8; sem++) {
+            Semester semester = currentStudent.getSemesters().get(sem);
+            if (semester != null && semester.allSubjectsHaveMarks() && semester.isPass()) {
+                completedCount++;
+                double sgpa = semester.calculateSGPA();
+                result.append("  Semester ").append(sem).append(": SGPA = ").append(df.format(sgpa)).append("\n");
+            }
+        }
+        
+        result.append("\nTotal Completed Semesters: ").append(completedCount).append("\n");
+        result.append("Overall CGPA: ").append(df.format(cgpa)).append("\n");
+        
+        studentResultArea.setText(result.toString());
+    }
+    
+    private double calculateCGPA(Student student) {
+        double totalSGPA = 0;
+        int count = 0;
+        
+        for (int sem = 1; sem <= 8; sem++) {
+            Semester semester = student.getSemesters().get(sem);
+            if (semester != null && semester.allSubjectsHaveMarks() && semester.isPass()) {
+                double sgpa = semester.calculateSGPA();
+                totalSGPA += sgpa;
+                count++;
+            }
+        }
+        
+        return count == 0 ? 0 : totalSGPA / count;
+    }
+    
+    private void createManagementPanel() {
+        JPanel managementPanel = new JPanel(new BorderLayout());
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        headerPanel.setBackground(new Color(60, 179, 113));
+        
+        JLabel titleLabel = new JLabel("MANAGEMENT DASHBOARD - ALL STUDENTS", JLabel.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.CENTER);
+        
+        JButton backBtn = new JButton("Back to Menu");
+        backBtn.addActionListener(e -> cardLayout.show(mainPanel, "MANAGEMENT_MENU"));
+        headerPanel.add(backBtn, BorderLayout.EAST);
+        
+        managementPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Students Table
+        String[] columns = {"USN", "Name", "DOB", "Completed Sems", "Status"};
+        studentsTableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        studentsTable = new JTable(studentsTableModel);
+        studentsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        studentsTable.setFont(new Font("Arial", Font.PLAIN, 12));
+        studentsTable.getTableHeader().setFont(new Font("Arial", Font.BOLD, 12));
+        
+        // Add mouse listener for double-click
+        studentsTable.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent evt) {
+                if (evt.getClickCount() == 2) {
+                    viewSelectedStudentDetails();
+                }
+            }
+        });
+        
+        JScrollPane tableScrollPane = new JScrollPane(studentsTable);
+        tableScrollPane.setBorder(BorderFactory.createTitledBorder("Students List"));
+        managementPanel.add(tableScrollPane, BorderLayout.CENTER);
+        
+        // Result Area
+        managementResultArea = new JTextArea(10, 80);
+        managementResultArea.setEditable(false);
+        managementResultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        JScrollPane resultScrollPane = new JScrollPane(managementResultArea);
+        resultScrollPane.setBorder(BorderFactory.createTitledBorder("Details"));
+        
+        managementPanel.add(resultScrollPane, BorderLayout.SOUTH);
+        
+        mainPanel.add(managementPanel, "MANAGEMENT");
+    }
+    
+    private void createManagementMenuPanel() {
+        JPanel menuPanel = new JPanel(new BorderLayout());
+        menuPanel.setBackground(new Color(240, 240, 240));
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        headerPanel.setBackground(new Color(60, 179, 113));
+        
+        JLabel titleLabel = new JLabel("MANAGEMENT MENU", JLabel.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.CENTER);
+        
+        JButton backBtn = new JButton("Back to Login");
+        backBtn.addActionListener(e -> cardLayout.show(mainPanel, "LOGIN"));
+        headerPanel.add(backBtn, BorderLayout.EAST);
+        
+        menuPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Menu Buttons
+        JPanel buttonPanel = new JPanel(new GridLayout(4, 2, 15, 15));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(50, 50, 50, 50));
+        buttonPanel.setBackground(new Color(240, 240, 240));
+        
+        String[] buttonLabels = {
+            "Add Student", "Delete Student", "Add/Update Marks", 
+            "View All Students", "Add Subject", "Delete Subject", 
+            "View Student Result", "Student Statistics"
+        };
+        
+        for (String label : buttonLabels) {
+            JButton button = createStyledButton(label, new Color(70, 130, 180));
+            button.addActionListener(new ManagementMenuListener());
+            buttonPanel.add(button);
+        }
+        
+        menuPanel.add(buttonPanel, BorderLayout.CENTER);
+        
+        mainPanel.add(menuPanel, "MANAGEMENT_MENU");
+    }
+    
+    private void createAddStudentPanel() {
+        // This will be handled by dialogs
+    }
+    
+    private void createAddMarksPanel() {
+        // This will be handled by dialogs
+    }
+    
+    private void createAddSubjectPanel() {
+        // This will be handled by dialogs
+    }
+    
+    private void loadManagementData() {
+        studentsTableModel.setRowCount(0);
+        for (Student student : system.students.values()) {
+            int completedSems = countCompletedSemesters(student);
+            String status = getOverallStatus(student);
+            studentsTableModel.addRow(new Object[]{
+                student.getUsn(),
+                student.getName(),
+                student.getDob(),
+                completedSems,
+                status
+            });
+        }
+    }
+    
+    private int countCompletedSemesters(Student student) {
+        int count = 0;
+        for (int sem = 1; sem <= 8; sem++) {
+            Semester semester = student.getSemesters().get(sem);
+            if (semester != null && semester.allSubjectsHaveMarks()) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    private String getOverallStatus(Student student) {
+        boolean hasFailures = false;
+        boolean allCompleted = true;
+        boolean hasAnyData = false;
+        
+        for (int sem = 1; sem <= 8; sem++) {
+            Semester semester = student.getSemesters().get(sem);
+            if (semester != null) {
+                hasAnyData = true;
+                if (semester.allSubjectsHaveMarks()) {
+                    if (semester.hasFailedSubjects()) {
+                        hasFailures = true;
+                    }
+                } else if (semester.hasAnyMarks()) {
+                    allCompleted = false;
+                }
+            }
+        }
+        
+        if (!hasAnyData) return "NO DATA";
+        if (hasFailures) return "FAIL";
+        if (allCompleted) return "PASS";
+        return "IN PROGRESS";
+    }
+    
+    private void viewSelectedStudentDetails() {
+        int selectedRow = studentsTable.getSelectedRow();
+        if (selectedRow == -1) return;
+        
+        String usn = (String) studentsTableModel.getValueAt(selectedRow, 0);
+        Student student = system.students.get(usn);
+        
+        if (student != null) {
+            StringBuilder details = new StringBuilder();
+            details.append("Student Details:\n");
+            details.append("Name: ").append(student.getName()).append("\n");
+            details.append("USN: ").append(usn).append("\n");
+            details.append("DOB: ").append(student.getDob()).append("\n\n");
+            
+            details.append("Semester-wise Performance:\n");
+            for (int sem = 1; sem <= 8; sem++) {
+                Semester semester = student.getSemesters().get(sem);
+                if (semester != null && semester.hasAnyMarks()) {
+                    double sgpa = semester.calculateSGPA();
+                    String status = "Incomplete";
+                    if (semester.allSubjectsHaveMarks()) {
+                        status = semester.isPass() ? "PASS" : "FAIL";
+                    }
+                    details.append("  Semester ").append(sem).append(": SGPA=").append(df.format(sgpa))
+                           .append(", Status=").append(status);
+                    if (semester.hasFailedSubjects()) {
+                        details.append(" (Failed in ").append(semester.getFailedSubjectCount()).append(" subjects)");
+                    }
+                    details.append("\n");
+                }
+            }
+            
+            managementResultArea.setText(details.toString());
+        }
+    }
+    
+    // Management Menu Action Listener
+    private class ManagementMenuListener implements ActionListener {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            String command = ((JButton) e.getSource()).getText();
+            
+            switch (command) {
+                case "Add Student":
+                    addStudent();
+                    break;
+                case "Delete Student":
+                    deleteStudent();
+                    break;
+                case "Add/Update Marks":
+                    addUpdateMarks();
+                    break;
+                case "View All Students":
+                    viewAllStudents();
+                    break;
+                case "Add Subject":
+                    addSubject();
+                    break;
+                case "Delete Subject":
+                    deleteSubject();
+                    break;
+                case "View Student Result":
+                    viewStudentResultManagement();
+                    break;
+                case "Student Statistics":
+                    showStudentStatistics();
+                    break;
+            }
+        }
+    }
+    
+    private void addStudent() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        JTextField usnField = new JTextField();
+        JTextField nameField = new JTextField();
+        JTextField dobField = new JTextField();
+        
+        panel.add(new JLabel("USN:"));
+        panel.add(usnField);
+        panel.add(new JLabel("Name:"));
+        panel.add(nameField);
+        panel.add(new JLabel("DOB (DD-MM-YYYY):"));
+        panel.add(dobField);
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add Student", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            String usn = usnField.getText().trim();
+            String name = nameField.getText().trim();
+            String dob = dobField.getText().trim();
+            
+            if (usn.isEmpty() || name.isEmpty() || dob.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "All fields are required!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (system.students.containsKey(usn)) {
+                JOptionPane.showMessageDialog(mainFrame, "Student with USN " + usn + " already exists!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            Student student = new Student(usn, name, dob);
+            system.students.put(usn, student);
+            JOptionPane.showMessageDialog(mainFrame, "Student added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            loadManagementData();
+        }
+    }
+    
+    private void deleteStudent() {
+        String usn = JOptionPane.showInputDialog(mainFrame, "Enter USN to delete:");
+        if (usn != null && !usn.trim().isEmpty()) {
+            if (!system.students.containsKey(usn)) {
+                JOptionPane.showMessageDialog(mainFrame, "Student not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            Student student = system.students.get(usn);
+            int confirm = JOptionPane.showConfirmDialog(mainFrame, 
+                "Are you sure you want to delete student: " + student.getName() + "?", 
+                "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                system.students.remove(usn);
+                JOptionPane.showMessageDialog(mainFrame, "Student deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                loadManagementData();
+            }
+        }
+    }
+    
+    private void addUpdateMarks() {
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        JTextField usnField = new JTextField();
+        JComboBox<Integer> semComboBox = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5, 6, 7, 8});
+        
+        panel.add(new JLabel("Student USN:"));
+        panel.add(usnField);
+        panel.add(new JLabel("Semester:"));
+        panel.add(semComboBox);
+        panel.add(new JLabel(""));
+        panel.add(new JLabel(""));
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add/Update Marks", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            String usn = usnField.getText().trim();
+            int sem = (Integer) semComboBox.getSelectedItem();
+            
+            if (usn.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please enter USN!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            Student student = system.students.get(usn);
+            if (student == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Student not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Validate previous semesters
+            if (sem > 1) {
+                int highestCompleted = student.getHighestCompletedSemester();
+                if (highestCompleted < sem - 1) {
+                    JOptionPane.showMessageDialog(mainFrame, 
+                        "Cannot add marks for Semester " + sem + "\n" +
+                        "Student must complete Semester " + (sem - 1) + " first.\n" +
+                        "Currently completed up to Semester: " + (highestCompleted == 0 ? "None" : highestCompleted),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            }
+            
+            enterMarksForSemester(student, sem);
+        }
+    }
+    
+    private void enterMarksForSemester(Student student, int sem) {
+        Semester semester = student.getSemesters().get(sem);
+        if (semester == null) {
+            semester = new Semester(sem);
+            student.addSemester(sem, semester);
+        }
+        
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        
+        // Create subjects panel
+        JPanel subjectsPanel = new JPanel(new GridLayout(0, 1, 5, 5));
+        java.util.List<JTextField> marksFields = new ArrayList<>();
+        
+        for (Subject subject : semester.getSubjects()) {
+            JPanel subjectPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            JLabel subjectLabel = new JLabel(String.format("%s - %s (%d credits): ", 
+                subject.getCode(), subject.getName(), subject.getCredits()));
+            JTextField marksField = new JTextField(5);
+            if (subject.hasMarks()) {
+                marksField.setText(String.valueOf(subject.getMarks()));
+            }
+            
+            subjectPanel.add(subjectLabel);
+            subjectPanel.add(marksField);
+            marksFields.add(marksField);
+            subjectsPanel.add(subjectPanel);
+        }
+        
+        JScrollPane scrollPane = new JScrollPane(subjectsPanel);
+        scrollPane.setPreferredSize(new Dimension(500, 300));
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, mainPanel, 
+            "Enter Marks for " + student.getName() + " - Semester " + sem,
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            boolean hasErrors = false;
+            StringBuilder errorMessage = new StringBuilder();
+            
+            for (int i = 0; i < semester.getSubjects().size(); i++) {
+                Subject subject = semester.getSubjects().get(i);
+                JTextField marksField = marksFields.get(i);
+                String marksText = marksField.getText().trim();
+                
+                if (!marksText.isEmpty()) {
+                    try {
+                        int marks = Integer.parseInt(marksText);
+                        if (marks < 0 || marks > 100) {
+                            hasErrors = true;
+                            errorMessage.append("Invalid marks for ").append(subject.getCode())
+                                      .append(". Marks should be 0-100.\n");
+                        } else {
+                            subject.setMarks(marks);
+                        }
+                    } catch (NumberFormatException e) {
+                        hasErrors = true;
+                        errorMessage.append("Invalid marks format for ").append(subject.getCode()).append("\n");
+                    }
+                }
+            }
+            
+            if (hasErrors) {
+                JOptionPane.showMessageDialog(mainFrame, errorMessage.toString(), "Input Error", JOptionPane.ERROR_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(mainFrame, "Marks updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                loadManagementData();
+            }
+        }
+    }
+    
+    private void viewAllStudents() {
+        loadManagementData();
+        cardLayout.show(mainPanel, "MANAGEMENT");
+    }
+    
+    private void addSubject() {
+        JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+        JComboBox<Integer> semComboBox = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5, 6, 7, 8});
+        JTextField codeField = new JTextField();
+        JTextField nameField = new JTextField();
+        JTextField creditsField = new JTextField();
+        
+        panel.add(new JLabel("Semester:"));
+        panel.add(semComboBox);
+        panel.add(new JLabel("Subject Code:"));
+        panel.add(codeField);
+        panel.add(new JLabel("Subject Name:"));
+        panel.add(nameField);
+        panel.add(new JLabel("Credits:"));
+        panel.add(creditsField);
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Add Subject", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            try {
+                int sem = (Integer) semComboBox.getSelectedItem();
+                String code = codeField.getText().trim();
+                String name = nameField.getText().trim();
+                int credits = Integer.parseInt(creditsField.getText().trim());
+                
+                if (code.isEmpty() || name.isEmpty()) {
+                    JOptionPane.showMessageDialog(mainFrame, "Code and Name are required!", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                // Add subject to all students for this semester
+                int count = 0;
+                for (Student student : system.students.values()) {
+                    Semester semester = student.getSemesters().get(sem);
+                    if (semester == null) {
+                        semester = new Semester(sem);
+                        student.addSemester(sem, semester);
+                    }
+                    semester.addSubject(new Subject(code, name, credits));
+                    count++;
+                }
+                
+                JOptionPane.showMessageDialog(mainFrame, 
+                    "Subject added to semester " + sem + " for " + count + " students.", 
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+                    
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(mainFrame, "Invalid credits value!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void deleteSubject() {
+        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
+        JComboBox<Integer> semComboBox = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5, 6, 7, 8});
+        JTextField codeField = new JTextField();
+        
+        panel.add(new JLabel("Semester:"));
+        panel.add(semComboBox);
+        panel.add(new JLabel("Subject Code:"));
+        panel.add(codeField);
+        
+        int result = JOptionPane.showConfirmDialog(mainFrame, panel, "Delete Subject", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (result == JOptionPane.OK_OPTION) {
+            int sem = (Integer) semComboBox.getSelectedItem();
+            String code = codeField.getText().trim();
+            
+            if (code.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, "Please enter subject code!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            int count = 0;
+            for (Student student : system.students.values()) {
+                Semester semester = student.getSemesters().get(sem);
+                if (semester != null) {
+                    semester.removeSubject(code);
+                    count++;
+                }
+            }
+            
+            JOptionPane.showMessageDialog(mainFrame, 
+                "Subject removed from semester " + sem + " for " + count + " students.", 
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+    
+    private void viewStudentResultManagement() {
+        String usn = JOptionPane.showInputDialog(mainFrame, "Enter Student USN:");
+        if (usn != null && !usn.trim().isEmpty()) {
+            Student student = system.students.get(usn);
+            if (student == null) {
+                JOptionPane.showMessageDialog(mainFrame, "Student not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Show student result in a dialog
+            StringBuilder result = new StringBuilder();
+            result.append("Student: ").append(student.getName()).append("\n");
+            result.append("USN: ").append(usn).append("\n");
+            result.append("DOB: ").append(student.getDob()).append("\n\n");
+            
+            result.append("Semester Results:\n");
+            for (int sem = 1; sem <= 8; sem++) {
+                Semester semester = student.getSemesters().get(sem);
+                if (semester != null && semester.hasAnyMarks()) {
+                    double sgpa = semester.calculateSGPA();
+                    String status = "Incomplete";
+                    if (semester.allSubjectsHaveMarks()) {
+                        status = semester.isPass() ? "PASS" : "FAIL";
+                    }
+                    result.append("  Semester ").append(sem).append(": SGPA=").append(df.format(sgpa))
+                           .append(", Status=").append(status);
+                    if (semester.hasFailedSubjects()) {
+                        result.append(" (Failed in ").append(semester.getFailedSubjectCount()).append(" subjects)");
+                    }
+                    result.append("\n");
+                }
+            }
+            
+            JTextArea textArea = new JTextArea(20, 50);
+            textArea.setText(result.toString());
+            textArea.setEditable(false);
+            JScrollPane scrollPane = new JScrollPane(textArea);
+            
+            JOptionPane.showMessageDialog(mainFrame, scrollPane, "Student Result - " + student.getName(), 
+                JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+    
+    private void showStudentStatistics() {
+        int totalStudents = system.students.size();
+        int passedStudents = 0;
+        int failedStudents = 0;
+        int inProgressStudents = 0;
+        int noDataStudents = 0;
+        
+        for (Student student : system.students.values()) {
+            String status = getOverallStatus(student);
+            switch (status) {
+                case "PASS": passedStudents++; break;
+                case "FAIL": failedStudents++; break;
+                case "IN PROGRESS": inProgressStudents++; break;
+                case "NO DATA": noDataStudents++; break;
+            }
+        }
+        
+        StringBuilder stats = new StringBuilder();
+        stats.append("=== STUDENT STATISTICS ===\n\n");
+        stats.append("Total Students: ").append(totalStudents).append("\n");
+        stats.append("Passed: ").append(passedStudents).append("\n");
+        stats.append("Failed: ").append(failedStudents).append("\n");
+        stats.append("In Progress: ").append(inProgressStudents).append("\n");
+        stats.append("No Data: ").append(noDataStudents).append("\n\n");
+        
+        if (totalStudents > 0) {
+            stats.append("Percentage Distribution:\n");
+            stats.append("Passed: ").append(String.format("%.1f", (passedStudents * 100.0 / totalStudents))).append("%\n");
+            stats.append("Failed: ").append(String.format("%.1f", (failedStudents * 100.0 / totalStudents))).append("%\n");
+            stats.append("In Progress: ").append(String.format("%.1f", (inProgressStudents * 100.0 / totalStudents))).append("%\n");
+            stats.append("No Data: ").append(String.format("%.1f", (noDataStudents * 100.0 / totalStudents))).append("%\n");
+        }
+        
+        JOptionPane.showMessageDialog(mainFrame, stats.toString(), "Student Statistics", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeel());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        SwingUtilities.invokeLater(() -> {
+            new StudentResultSystemGUI();
+        });
+    }
+}
